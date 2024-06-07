@@ -4,6 +4,7 @@
 #include <cassert>
 #include <vector>
 #include <iostream>
+#include <unordered_set>
 
 #include "graph.hpp"
 #include "biconnectedComponent.hpp"
@@ -20,23 +21,28 @@ bool Embedder::embed(Graph& graph) {
     #endif
     std::unique_ptr<BiconnectedComponents> bicCompsPtr(graph.computeBiconnectedComponents());
     for (const auto& component : bicCompsPtr->getComponents())
-        if (!embed(*component.get())) return false;
+        if (!embed(*component)) return false;
     return true;
 }
 
 bool Embedder::embed(Component& component) {
     if (component.numberOfNodes() < 5) return true;
+    #ifdef DEBUG_MODE
+    std::cout << "embedding biconnected component:\n";
+    component.print();
+    std::cout << "need to find cycle\n";
+    #endif
     std::unique_ptr<Cycle> cyclePtr (component.findCycle());
     Cycle& cycle = *cyclePtr.get();
+    #ifdef DEBUG_MODE
+    std::cout << "found cycle: ";
+    cycle.print();
+    #endif
     std::vector<std::unique_ptr<Segment>> segments{};
     component.findSegments(cycle, segments);
     component.findChords(cycle, segments);
     #ifdef DEBUG_MODE
-    std::cout << "embedding component:\n";
-    component.print();
-    std::cout << "found cycle:\n";
-    cycle.print();
-    std::cout << "\nfound segments:\n";
+    std::cout << "found segments:\n";
     int c = 0;
     for (const auto& segment : segments) {
         std::cout << "segment [" << c++ << "]\n";
@@ -56,14 +62,19 @@ bool Embedder::embed(Component& component) {
             return true;
         }
         // chosen cycle is bad
+        #ifdef DEBUG_MODE
+        std::cout << "the segment is not a path: need to recompute cycle\n";
+        #endif
         makeCycleGood(cycle, segment);
+        #ifdef DEBUG_MODE
+        std::cout << "new cycle: ";
+        cycle.print();
+        #endif
         segments.clear();
         component.findSegments(cycle, segments);
         component.findChords(cycle, segments);
         #ifdef DEBUG_MODE
-        std::cout << "new cycle:\n";
-        cycle.print();
-        std::cout << "\nnew found segments:\n";
+        std::cout << "new found segments:\n";
         int c = 0;
         for (const auto& segment : segments) {
             std::cout << "segment [" << c++ << "]\n";
@@ -77,16 +88,21 @@ bool Embedder::embed(Component& component) {
     std::vector<int> bipartition{};
     bool isBipartite = interlacementGraph.computeBipartition(bipartition);
     if (!isBipartite) return false;
-    for (const auto& segment : segments)
-        if (!embed(*segment)) return false; // need to include the cycle TODO
+    for (const auto& segment : segments) {
+        if (!embed(*segment)) return false;
+    }
     return true;
 }
 
 void Embedder::makeCycleGood(Cycle& cycle, Segment& segment) {
+    #ifdef DEBUG_MODE
+    std::cout << "recomputing cycle\n";
+    #endif
     std::vector<int>& attachments = segment.getAttachments();
     std::vector<int> attachmentsLabels{};
     for (int attachment : attachments)
         attachmentsLabels.push_back(segment.getLabelOfNode(attachment));
+    // this doesnt work now NEED TO BE CHANGED
     int foundAttachments = 0;
     int attachmentsToFind = 3;
     int attachmentsToUse[3];
@@ -101,20 +117,21 @@ void Embedder::makeCycleGood(Cycle& cycle, Segment& segment) {
         attachmentsToUse[foundAttachments++] = attachments[index];
         if (foundAttachments == attachmentsToFind) break;
     }
-    std::unique_ptr<std::list<int>> path(segment.computePathBetweenNodes(attachmentsToUse[0], attachmentsToUse[1]));
-    for (int& node : *path)
-        node = segment.getLabelOfNode(node);
     if (attachmentsToUse[2] != -1)
         attachmentsToUse[2] = segment.getLabelOfNode(attachmentsToUse[2]);
+    assert(foundAttachments == attachmentsToFind);
     #ifdef DEBUG_MODE
-    std::cout << "the segment is not a path: need to recompute cycle\n";
     std::cout << "found attachments to use: [ ";
     std::cout << segment.getLabelOfNode(attachmentsToUse[0]) << " ";
     std::cout << segment.getLabelOfNode(attachmentsToUse[1]) << " ";
     std::cout << attachmentsToUse[2] << " ]\n";
-    std::cout << "path between first and second in segment:\n";
-    printList(*path);
-    std::cout << std::endl;
+    #endif
+    std::unique_ptr<std::list<int>> path(segment.computePathBetweenAttachments(attachmentsToUse[0], attachmentsToUse[1]));
+    for (int& node : *path)
+        node = segment.getLabelOfNode(node);
+    #ifdef DEBUG_MODE
+    std::cout << "path between first and second in segment:";
+    printIterable(*path);
     #endif
     cycle.changeWithPath(*path, attachmentsToUse[2]);
 }

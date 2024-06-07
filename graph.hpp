@@ -22,7 +22,6 @@ public:
     virtual void print();
     int numberOfNodes();
     BiconnectedComponents* computeBiconnectedComponents();
-    std::list<int>* computePathBetweenNodes(int start, int end);
     bool computeBipartition(std::vector<int>& bipartition);
 };
 

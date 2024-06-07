@@ -26,41 +26,13 @@ void Graph::print() {
     for (int node = 0; node < numberOfNodes(); ++node) {
         std::vector<int>& neighbors = getNeighborsOfNode(node);
         std::cout << "node: " << node << " neighbors: " << neighbors.size() << " ";
-        printVector(neighbors);
+        printIterable(neighbors, "");
         std::cout << std::endl;
     }
 }
 
 int Graph::numberOfNodes() {
     return numberOfNodes_m;
-}
-
-std::list<int>* Graph::computePathBetweenNodes(int start, int end) {
-    int prevOfNode[numberOfNodes_m];
-    for (int node = 0; node < numberOfNodes_m; ++node)
-        prevOfNode[node] = -1;
-    std::list<int> queue{};
-    queue.push_back(start);
-    while (queue.size() != 0) {
-        int node = queue.front();
-        queue.pop_front();
-        for (const int neighbor : getNeighborsOfNode(node)) {
-            if (prevOfNode[neighbor] == -1) {
-                prevOfNode[neighbor] = node;
-                queue.push_back(neighbor);
-                if (neighbor == end) break;
-            }
-        }
-        if (prevOfNode[end] != -1) break;
-    }
-    std::list<int>* path = new std::list<int>();
-    int crawl = end;
-    while (crawl != start) {
-        path->push_front(crawl);
-        crawl = prevOfNode[crawl];
-    }
-    path->push_front(crawl);
-    return path;
 }
 
 // assumes bipartition vector is initially empty

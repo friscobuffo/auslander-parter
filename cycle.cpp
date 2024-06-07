@@ -88,7 +88,7 @@ std::vector<int>& Cycle::nodes() {
 }
 
 void Cycle::print() {
-    printVector(nodes_m);
+    printIterable(nodes_m);
 }
 
 void Cycle::reverse() {

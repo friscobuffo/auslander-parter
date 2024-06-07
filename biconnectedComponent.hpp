@@ -15,7 +15,7 @@ private:
     void dfsCycle(int node, bool isNodeVisited[], int prev, std::list<int>& nodeList);
     void cleanupCycle(std::list<int>& nodeList);
     void dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment, 
-        std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle, bool isCycleNodeAlreadyInSegment[]);
+        std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle);
 public:
     Component(int node);
     Component(int originalNumberOfNodes, std::list<int>& listOfNodes, std::list<std::pair<int, int>>& listOfEdges);

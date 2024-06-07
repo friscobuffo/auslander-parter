@@ -47,6 +47,9 @@ void Component::cleanupCycle(std::list<int>& nodeList) {
 }
 
 Cycle* Component::findCycle() {
+    #ifdef DEBUG_MODE
+    std::cout << "finding cycle in biconnected component:\n";
+    #endif
     bool isNodeVisited[numberOfNodes()];
     for (int node = 0; node < numberOfNodes(); ++node)
         isNodeVisited[node] = false;
@@ -58,21 +61,18 @@ Cycle* Component::findCycle() {
 
 // parameter isCycleNodeAlreadyInSegment is necessary otherwise attachment nodes may be added multiple times
 void Component::dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment,
-    std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle, bool isCycleNodeAlreadyInSegment[]) {
+    std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle) {
     nodesInSegment.push_back(node);
     isNodeVisited[node] = true;
     for (const int neighbor : getNeighborsOfNode(node)) {
         if (cycle.hasNode(neighbor)) {
-            if (!isCycleNodeAlreadyInSegment[neighbor])
-                nodesInSegment.push_back(neighbor);
             edgesInSegment.push_back(std::make_pair(node, neighbor));
-            isCycleNodeAlreadyInSegment[neighbor] = true;
             continue;
         }
         if (node < neighbor)
             edgesInSegment.push_back(std::make_pair(node, neighbor));
         if (!isNodeVisited[neighbor])
-            dfsFindSegments(neighbor, isNodeVisited, nodesInSegment, edgesInSegment, cycle, isCycleNodeAlreadyInSegment);
+            dfsFindSegments(neighbor, isNodeVisited, nodesInSegment, edgesInSegment, cycle);
     }
 }
 
@@ -83,12 +83,15 @@ void Component::findChords(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& 
             if (node < neighbor) continue;
             if (cycle.hasNode(neighbor))
                 if (neighbor != cycle.getPrevOfNode(node) && neighbor != cycle.getNextOfNode(node))
-                    segments.push_back(std::make_unique<Segment>(*this, node, neighbor));
+                    segments.push_back(std::make_unique<Segment>(*this, node, neighbor, cycle));
         }
     }
 }
 
 void Component::findSegments(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments) {
+    #ifdef DEBUG_MODE
+    std::cout << "finding segments\n";
+    #endif
     bool isNodeVisited[numberOfNodes()];
     for (int node = 0; node < numberOfNodes(); ++node)
         isNodeVisited[node] = false;
@@ -99,11 +102,9 @@ void Component::findSegments(Cycle& cycle, std::vector<std::unique_ptr<Segment>>
         if (!isNodeVisited[node]) {
             std::vector<int> nodesInSegment{};
             std::vector<std::pair<int, int>> edgesInSegment{};
-            bool isCycleNodeAlreadyInSegment[numberOfNodes()]; // this array is necessary otherwise in the same segment
-            // attachment nodes may be added multiple times
+            dfsFindSegments(node, isNodeVisited, nodesInSegment, edgesInSegment, cycle);
             for (const int node : cycle.nodes())
-                isCycleNodeAlreadyInSegment[node] = false;
-            dfsFindSegments(node, isNodeVisited, nodesInSegment, edgesInSegment, cycle, isCycleNodeAlreadyInSegment);
+                nodesInSegment.push_back(node);
             segments.push_back(std::make_unique<Segment>(*this, nodesInSegment, edgesInSegment, cycle));
         }
     }
@@ -120,7 +121,7 @@ BiconnectedComponents::BiconnectedComponents(Graph& graph, std::vector<int>& cut
 void BiconnectedComponents::print() {
     std::cout << "Biconnected components:\n";
     std::cout << "Cutvertices: ";
-    printVector(cutVertices_m);
+    printIterable(cutVertices_m);
     printf("\n");
     int index = 0;
     for (auto& component : components_m) {

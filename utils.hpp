@@ -16,20 +16,12 @@ int findIndex(const std::vector<T>& vec, T value) {
     return -1;
 }
 
-template <typename T>
-void printVector(std::vector<T>& vec, const std::string& end = "\n") {
+template <typename Iterable>
+void printIterable(const Iterable& container, const std::string& end = "\n") {
     std::cout << "[ ";
-    for (const auto& elem : vec)
+    for (const auto& elem : container)
         std::cout << elem << " ";
-    std::cout << "]";
-}
-
-template <typename T>
-void printList(std::list<T>& vec, const std::string& end = "\n") {
-    std::cout << "[ ";
-    for (const auto& elem : vec)
-        std::cout << elem << " ";
-    std::cout << "]";
+    std::cout << "]" << end;
 }
 
 template <typename T>
