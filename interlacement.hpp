@@ -2,22 +2,19 @@
 #define MY_INTERLACEMENT_H
 
 #include <vector>
-#include <memory>
 
 #include "graph.hpp"
-
-class Segment;
-class Cycle;
+#include "segment.hpp"
+#include "cycle.hpp"
 
 class InterlacementGraph : public Graph {
 private:
-    Cycle& cycle_m;
-    std::vector<Segment*> segments_m{};
+    const Cycle& cycle_m;
+    const std::vector<Segment>& segments_m;
     void computeConflicts();
-    void computeCycleLabels(Segment& segment, int cycleLabels[]);
+    void computeCycleLabels(const Segment& segment, int cycleLabels[]);
 public:
-    InterlacementGraph(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments);
-    bool isBipartite();
+    InterlacementGraph(const Cycle& cycle, const std::vector<Segment>& segments);
 };
 
 #endif

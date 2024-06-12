@@ -3,36 +3,32 @@
 
 #include <vector>
 #include <list>
-#include <memory>
+#include <utility>
 
 #include "graph.hpp"
 
-class Cycle;
-class Segment;
-
-class Component : public GraphWithLabels {
+class Component : public Graph {
 private:
-    void dfsCycle(int node, bool isNodeVisited[], int prev, std::list<int>& nodeList);
-    void cleanupCycle(std::list<int>& nodeList);
-    void dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment, 
-        std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle);
+    std::vector<int> nodeLabel_m{};
 public:
-    Component(int node);
-    Component(int originalNumberOfNodes, std::list<int>& listOfNodes, std::list<std::pair<int, int>>& listOfEdges);
-    Cycle* findCycle();
-    void findSegments(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments);
-    void findChords(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& chords);
+    Component(int numberOfNodes);
+    void print() const override;
+    int getLabelOfNode(int node) const;
+    void assignNodeLabel(int node, int label);
 };
 
-class BiconnectedComponents {
+class BiconnectedComponentsHandler {
 private:
-    Graph& originalGraph_m;
+    const Graph& originalGraph_m;
     std::vector<int> cutVertices_m{};
-    std::vector<std::unique_ptr<Component>> components_m{};
+    std::vector<Component> components_m{};
+    void dfsBicCom(int node, int nodeId[], int prevOfNode[], int& nextIdToAssign, int lowPoint[],
+        std::list<int>& nodes, std::list<std::pair<int, int>>& edges);
+    Component buildComponent(std::list<int>& nodes, std::list<std::pair<int, int>>& edges);
 public:
-    BiconnectedComponents(Graph& graph, std::vector<int>& cutVertices, std::vector<Component*>& components);
+    BiconnectedComponentsHandler(const Graph& graph);
     void print();
-    std::vector<std::unique_ptr<Component>>& getComponents();
+    const std::vector<Component>& getComponents();
 };
 
 #endif

@@ -3,95 +3,27 @@
 #include <iostream>
 #include <cassert>
 
-#include "cycle.hpp"
-#include "biconnectedComponent.hpp"
 #include "utils.hpp"
 
-Segment::Segment(Component& component, std::vector<int>& nodesInSegment, std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle) 
-    : GraphWithLabels(nodesInSegment), originalComponent_m(component) {
-    #ifdef DEBUG_MODE
-    std::cout << "creating segment\n";
-    std::cout << "nodes in segment: ";
-    printIterable(nodesInSegment);
-    #endif
-    int oldToNewLabel[component.numberOfNodes()];
-    isNodeAnAttachment_m.resize(nodesInSegment.size());
-    isNodeInCycle_m.resize(nodesInSegment.size());
-    for (int i = 0; i < nodesInSegment.size(); ++i) {
+Segment::Segment(int numberOfNodes, const Component& component, const Cycle& cycle)
+: Component(numberOfNodes), originalComponent_m(component), originalCycle_m(cycle) {
+    isNodeAnAttachment_m.resize(numberOfNodes);
+    for (int i = 0; i < numberOfNodes; ++i)
         isNodeAnAttachment_m[i] = false;
-        int node = nodesInSegment[i];
-        oldToNewLabel[node] = i;
-        if (cycle.hasNode(node))
-            isNodeInCycle_m[i] = true;
-        else
-            isNodeInCycle_m[i] = false;
-    }
-    for (const auto& edge : edgesInSegment) {
-        int node1 = oldToNewLabel[edge.first];
-        int node2 = oldToNewLabel[edge.second];
-        if (cycle.hasNode(edge.first)) {
-            if (!isNodeAnAttachment_m[node1]) {
-                attachmentNodes_m.push_back(node1);
-                isNodeAnAttachment_m[node1] = true;
-            }
-        }
-        if (cycle.hasNode(edge.second)) {
-            if (!isNodeAnAttachment_m[node2]) {
-                attachmentNodes_m.push_back(node2);
-                isNodeAnAttachment_m[node2] = true;
-            }
-        }
-        addEdge(node1, node2);
-    }
-    for (int i = 0; i < cycle.size()-1; ++i) {
-        int node1 = oldToNewLabel[cycle.getNodeByIndex(i)];
-        int node2 = oldToNewLabel[cycle.getNodeByIndex(i+1)];
-        addEdge(node1, node2);
-    }
-    addEdge(oldToNewLabel[cycle.getNodeByIndex(0)], oldToNewLabel[cycle.getNodeByIndex(cycle.size()-1)]);
-    #ifdef DEBUG_MODE
-    std::cout << "created segment\n";
-    std::cout << "attachments of segment: ";
-    std::vector<int> attachmentsLabels{};
-    for (const int attachment : attachmentNodes_m)
-        attachmentsLabels.push_back(getLabelOfNode(attachment));
-    printIterable(attachmentsLabels);
-    #endif
 }
 
-Segment::Segment(Component& component, int from, int to, Cycle& cycle) 
-    : GraphWithLabels(cycle.nodes()), originalComponent_m(component) {
-    #ifdef DEBUG_MODE
-    std::cout << "creating chord\n";
-    std::cout << "nodes in chord: ";
-    cycle.print();
-    std::cout << "chord: [" << from << " - " << to << "]\n";
-    #endif
-    isNodeAnAttachment_m.resize(cycle.size());
-    for (int i = 0; i < cycle.size(); ++i) {
-        if ((getLabelOfNode(i) == from) || (getLabelOfNode(i) == to)) {
-            isNodeAnAttachment_m[i] = true;
-            attachmentNodes_m.push_back(i);
-        }
-        else
-            isNodeAnAttachment_m[i] = false;
-    }
-    addEdge(attachmentNodes_m[0], attachmentNodes_m[1]);
-    assert(attachmentNodes_m.size() == 2);
-    for (int i = 0; i < cycle.size()-1; ++i) {
-        addEdge(i, i+1);
-    }
-    addEdge(0, cycle.size()-1);
-    #ifdef DEBUG_MODE
-    std::cout << "created chord\n";
-    #endif
+void Segment::addAttachment(int attachment) {
+    if (isNodeAnAttachment(attachment)) return;
+    isNodeAnAttachment_m[attachment] = true;
+    attachmentNodes_m.push_back(attachment);
 }
 
-bool Segment::isPath() {
-    #ifdef DEBUG_MODE
-    std::cout << "checking if segment is a path\n";
-    #endif
-    for (int node = 0; node < numberOfNodes(); ++node) {
+bool Segment::isNodeAnAttachment(int node) const {
+    return isNodeAnAttachment_m[node];
+}
+
+bool Segment::isPath() const {
+    for (int node = 0; node < size(); ++node) {
         if (isNodeAnAttachment(node)) continue;
         if (getNeighborsOfNode(node).size() > 2)
             return false;
@@ -99,17 +31,15 @@ bool Segment::isPath() {
     return true;
 }
 
-std::vector<int>& Segment::getAttachments() {
+const std::vector<int>& Segment::getAttachments() const {
     return attachmentNodes_m;
 }
 
-bool Segment::isNodeAnAttachment(int node) {
-    return isNodeAnAttachment_m[node];
-}
-
-std::list<int>* Segment::computePathBetweenAttachments(int start, int end) {
-    int prevOfNode[numberOfNodes()];
-    for (int node = 0; node < numberOfNodes(); ++node)
+std::list<int> Segment::computePathBetweenAttachments(int start, int end) const {
+    assert(isNodeAnAttachment(start));
+    assert(isNodeAnAttachment(end));
+    int prevOfNode[size()];
+    for (int node = 0; node < size(); ++node)
         prevOfNode[node] = -1;
     std::list<int> queue{};
     queue.push_back(start);
@@ -117,7 +47,8 @@ std::list<int>* Segment::computePathBetweenAttachments(int start, int end) {
         int node = queue.front();
         queue.pop_front();
         for (const int neighbor : getNeighborsOfNode(node)) {
-            if (isNodeInCycle(node) && isNodeInCycle(neighbor)) continue;
+            if (originalCycle_m.hasNode(getLabelOfNode(node)) && originalCycle_m.hasNode(getLabelOfNode(neighbor)))
+                continue;
             if (prevOfNode[neighbor] == -1) {
                 prevOfNode[neighbor] = node;
                 queue.push_back(neighbor);
@@ -126,16 +57,135 @@ std::list<int>* Segment::computePathBetweenAttachments(int start, int end) {
         }
         if (prevOfNode[end] != -1) break;
     }
-    std::list<int>* path = new std::list<int>();
+    std::list<int> path{};
     int crawl = end;
     while (crawl != start) {
-        path->push_front(crawl);
+        path.push_front(crawl);
         crawl = prevOfNode[crawl];
     }
-    path->push_front(crawl);
+    path.push_front(crawl);
     return path;
 }
 
-bool Segment::isNodeInCycle(int node) {
-    return isNodeInCycle_m[node];
+const Cycle& Segment::getOriginalCycle() const {
+    return originalCycle_m;
+}
+
+const Component& Segment::getOriginalComponent() {
+    return originalComponent_m;
+}
+
+SegmentsHandler::SegmentsHandler(const Component& component, const Cycle& cycle)
+: originalComponent_m(component), originalCycle_m(cycle) {
+    findSegments();
+    findChords();
+}
+
+void SegmentsHandler::dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment,
+std::vector<std::pair<int, int>>& edgesInSegment) {
+    nodesInSegment.push_back(node);
+    isNodeVisited[node] = true;
+    for (const int neighbor : originalComponent_m.getNeighborsOfNode(node)) {
+        if (originalCycle_m.hasNode(neighbor)) {
+            edgesInSegment.push_back(std::make_pair(node, neighbor));
+            continue;
+        }
+        if (node < neighbor)
+            edgesInSegment.push_back(std::make_pair(node, neighbor));
+        if (!isNodeVisited[neighbor])
+            dfsFindSegments(neighbor, isNodeVisited, nodesInSegment, edgesInSegment);
+    }
+}
+
+void SegmentsHandler::findChords() {
+    for (int i = 0; i < originalCycle_m.size(); ++i) {
+        int node = originalCycle_m.nodes()[i];
+        for (const int neighbor : originalComponent_m.getNeighborsOfNode(node)) {
+            if (node < neighbor) continue;
+            if (originalCycle_m.hasNode(neighbor))
+                if (neighbor != originalCycle_m.getPrevOfNode(node) && neighbor != originalCycle_m.getNextOfNode(node))
+                    segments_m.push_back(buildChord(node, neighbor));
+        }
+    }
+}
+
+void SegmentsHandler::findSegments() {
+    bool isNodeVisited[originalComponent_m.size()];
+    for (int node = 0; node < originalComponent_m.size(); ++node)
+        isNodeVisited[node] = false;
+    for (int node = 0; node < originalComponent_m.size(); ++node)
+        if (originalCycle_m.hasNode(node))
+            isNodeVisited[node] = true;    
+    for (int node = 0; node < originalComponent_m.size(); ++node) {
+        if (!isNodeVisited[node]) {
+            std::vector<int> nodes{}; // does NOT contain cycle nodes
+            std::vector<std::pair<int, int>> edges{}; // does NOT contain edges of the cycle
+            dfsFindSegments(node, isNodeVisited, nodes, edges);
+            segments_m.push_back(buildSegment(nodes, edges));
+        }
+    }
+}
+
+// nodes vector does NOT contain cycle nodes
+// edges vector does NOT contain cycle edges
+Segment SegmentsHandler::buildSegment(std::vector<int>& nodes, std::vector<std::pair<int, int>>& edges) {
+    Segment segment(nodes.size()+originalCycle_m.size(), originalComponent_m, originalCycle_m);
+    // assigning labels
+    // first nodes MUST be the same of the cycle in the SAME ORDER
+    int oldToNewLabel[originalComponent_m.size()];
+    for (int i = 0; i < originalCycle_m.size(); ++i) {
+        int cycleNode = originalCycle_m.nodes()[i];
+        oldToNewLabel[cycleNode] = i;
+        segment.assignNodeLabel(i, cycleNode);
+    }
+    for (int i = 0; i < nodes.size(); ++i) { // remember that nodes does not include cycle nodes
+        int node = nodes[i];
+        oldToNewLabel[node] = i+originalCycle_m.size();
+        segment.assignNodeLabel(i+originalCycle_m.size(), node);
+    }
+    // adding edges
+    for (auto& edge : edges) {
+        int from = oldToNewLabel[edge.first];
+        int to = oldToNewLabel[edge.second];
+        segment.addEdge(from, to);
+    }
+    // adding cycle edges
+    for (int i = 0; i < originalCycle_m.size()-1; ++i)
+        segment.addEdge(i, i+1);
+    segment.addEdge(0, originalCycle_m.size()-1);
+    // adding attachments
+    for (const auto& edge : edges) {
+        int node1 = oldToNewLabel[edge.first];
+        int node2 = oldToNewLabel[edge.second];
+        if (originalCycle_m.hasNode(edge.first))
+            segment.addAttachment(node1);
+        if (originalCycle_m.hasNode(edge.second))
+            segment.addAttachment(node2);
+    }
+    return segment;
+}
+
+Segment SegmentsHandler::buildChord(int attachment1, int attachment2) {
+    Segment chord(originalCycle_m.size(), originalComponent_m, originalCycle_m);
+    // assigning labels
+    // first nodes MUST be the same of the cycle in the SAME ORDER
+    for (int i = 0; i < originalCycle_m.size(); ++i)
+        chord.assignNodeLabel(i, originalCycle_m.nodes()[i]);
+    // adding cycle edges
+    for (int i = 0; i < originalCycle_m.size()-1; ++i)
+        chord.addEdge(i, i+1);
+    chord.addEdge(0, originalCycle_m.size()-1);
+    // adding chord edge
+    std::optional<int> from = originalCycle_m.getIndexOfNode(attachment1);
+    std::optional<int> to = originalCycle_m.getIndexOfNode(attachment2);
+    assert(from);
+    assert(to);
+    chord.addEdge(from.value(), to.value());
+    chord.addAttachment(from.value());
+    chord.addAttachment(to.value());
+    return chord;
+}
+
+const std::vector<Segment> SegmentsHandler::getSegments() {
+    return segments_m;
 }

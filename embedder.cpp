@@ -1,108 +1,78 @@
 #include "embedder.hpp"
 
-#include <memory>
 #include <cassert>
-#include <vector>
 #include <iostream>
-#include <unordered_set>
 
-#include "graph.hpp"
-#include "biconnectedComponent.hpp"
 #include "interlacement.hpp"
-#include "segment.hpp"
-#include "cycle.hpp"
 #include "utils.hpp"
 
-bool Embedder::embed(Graph& graph) {
-    if (graph.numberOfNodes() < 5) return true;
-    #ifdef DEBUG_MODE
-    std::cout << "embedding graph:\n";
-    graph.print();
-    #endif
-    std::unique_ptr<BiconnectedComponents> bicCompsPtr(graph.computeBiconnectedComponents());
-    for (const auto& component : bicCompsPtr->getComponents())
-        if (!embed(*component)) return false;
-    return true;
+Embedding::Embedding(int numberOfNodes) : Graph(numberOfNodes) {}
+
+void Embedding::addSingleEdge(int from, int to) {
+    neighborsOfNode_m[from].push_back(to);
 }
 
-bool Embedder::embed(Component& component) {
-    if (component.numberOfNodes() < 5) return true;
-    #ifdef DEBUG_MODE
-    std::cout << "embedding biconnected component:\n";
-    component.print();
-    std::cout << "need to find cycle\n";
-    #endif
-    std::unique_ptr<Cycle> cyclePtr (component.findCycle());
-    Cycle& cycle = *cyclePtr.get();
-    #ifdef DEBUG_MODE
-    std::cout << "found cycle: ";
-    cycle.print();
-    #endif
-    std::vector<std::unique_ptr<Segment>> segments{};
-    component.findSegments(cycle, segments);
-    component.findChords(cycle, segments);
-    #ifdef DEBUG_MODE
-    std::cout << "found segments:\n";
-    int c = 0;
-    for (const auto& segment : segments) {
-        std::cout << "segment [" << c++ << "]\n";
-        segment->print();
+// TODO
+Embedding Embedder::mergeBiconnectedComponents(std::vector<std::optional<Embedding>>& embeddings) {
+    return Embedding(1);
+}
+
+std::optional<Embedding> Embedder::embed(const Graph& graph) {
+    if (graph.size() < 4) return baseCaseGraph(graph);
+    BiconnectedComponentsHandler bicComps(graph);
+    std::vector<std::optional<Embedding>> embeddings{};
+    for (const auto& component : bicComps.getComponents()) {
+        embeddings.push_back(embed(component));
+        if (!embeddings.back().has_value()) return std::nullopt;
     }
-    #endif
-    if (segments.size() == 0) return true;
+    return mergeBiconnectedComponents(embeddings);
+}
+
+// TODO
+Embedding mergeSegmentsEmbeddings(const Component& component, const Cycle& cycle, std::vector<std::optional<Embedding>>& embeddings) {
+    Embedding output(component.size());
+    return output;
+}
+
+std::optional<Embedding> Embedder::embed(const Component& component, Cycle& cycle) {
+    SegmentsHandler segmentsHandler = SegmentsHandler(component, cycle);
+    const std::vector<Segment>& segments = segmentsHandler.getSegments();
+    if (segments.size() == 0) // entire biconnected component IS the cycle
+        return baseCaseCycle(cycle); // base case
     if (segments.size() == 1) {
-        #ifdef DEBUG_MODE
-        std::cout << "found only 1 segment:\n";
-        #endif
-        Segment& segment = *segments.front();
-        if (segment.isPath()) {// its good (base case)
-            #ifdef DEBUG_MODE
-            std::cout << "the segment is a path: good base case\n";
-            #endif
-            return true;
-        }
+        const Segment& segment = segments[0];
+        if (segment.isPath()) // base case
+            return baseCaseSegment(segment);
         // chosen cycle is bad
-        #ifdef DEBUG_MODE
-        std::cout << "the segment is not a path: need to recompute cycle\n";
-        #endif
         makeCycleGood(cycle, segment);
-        #ifdef DEBUG_MODE
-        std::cout << "new cycle: ";
-        cycle.print();
-        #endif
-        segments.clear();
-        component.findSegments(cycle, segments);
-        component.findChords(cycle, segments);
-        #ifdef DEBUG_MODE
-        std::cout << "new found segments:\n";
-        int c = 0;
-        for (const auto& segment : segments) {
-            std::cout << "segment [" << c++ << "]\n";
-            segment->print();
-        }
-        #endif
-        assert(segments.size() > 1);
+        return embed(component, cycle);
     }
-    // cycle now is good 100%
     InterlacementGraph interlacementGraph(cycle, segments);
-    std::vector<int> bipartition{};
-    bool isBipartite = interlacementGraph.computeBipartition(bipartition);
-    if (!isBipartite) return false;
-    for (const auto& segment : segments) {
-        if (!embed(*segment)) return false;
+    std::optional<std::vector<int>> bipartition = interlacementGraph.computeBipartition();
+    if (!bipartition) return std::nullopt;
+    std::vector<std::optional<Embedding>> embeddings{};
+    for (const Segment& segment : segments) {
+        embeddings.push_back(embed(segment));
+        if (!embeddings.back().has_value()) return std::nullopt;
+        for (int i = 0; i < cycle.size(); ++i) {
+            assert(segment.getLabelOfNode(i) == cycle.nodes()[i]);
+        }
     }
-    return true;
+    Embedding output = mergeSegmentsEmbeddings(component, cycle, embeddings);
+    return output;
 }
 
-void Embedder::makeCycleGood(Cycle& cycle, Segment& segment) {
-    #ifdef DEBUG_MODE
-    std::cout << "recomputing cycle\n";
-    #endif
-    std::vector<int>& attachments = segment.getAttachments();
+std::optional<Embedding> Embedder::embed(const Component& component) {
+    if (component.size() < 4) return baseCaseGraph(component); // base case
+    Cycle cycle(component);
+    return embed(component, cycle);
+}
+
+void Embedder::makeCycleGood(Cycle& cycle, const Segment& segment) {
+    const std::vector<int>& attachments = segment.getAttachments();
     std::vector<int> attachmentsLabels{};
     for (int attachment : attachments)
         attachmentsLabels.push_back(segment.getLabelOfNode(attachment));
-    // this doesnt work now NEED TO BE CHANGED
     int foundAttachments = 0;
     int attachmentsToFind = 3;
     int attachmentsToUse[3];
@@ -111,7 +81,7 @@ void Embedder::makeCycleGood(Cycle& cycle, Segment& segment) {
         attachmentsToUse[2] = -1;
     }
     for (int i = 0; i < cycle.size(); ++i) {
-        int node = cycle.getNodeByIndex(i);
+        int node = cycle.nodes()[i];
         int index = findIndex(attachmentsLabels, node);
         if (index == -1) continue;
         attachmentsToUse[foundAttachments++] = attachments[index];
@@ -120,18 +90,68 @@ void Embedder::makeCycleGood(Cycle& cycle, Segment& segment) {
     if (attachmentsToUse[2] != -1)
         attachmentsToUse[2] = segment.getLabelOfNode(attachmentsToUse[2]);
     assert(foundAttachments == attachmentsToFind);
-    #ifdef DEBUG_MODE
-    std::cout << "found attachments to use: [ ";
-    std::cout << segment.getLabelOfNode(attachmentsToUse[0]) << " ";
-    std::cout << segment.getLabelOfNode(attachmentsToUse[1]) << " ";
-    std::cout << attachmentsToUse[2] << " ]\n";
-    #endif
-    std::unique_ptr<std::list<int>> path(segment.computePathBetweenAttachments(attachmentsToUse[0], attachmentsToUse[1]));
-    for (int& node : *path)
+    std::list<int> path = segment.computePathBetweenAttachments(attachmentsToUse[0], attachmentsToUse[1]);
+    for (int& node : path)
         node = segment.getLabelOfNode(node);
-    #ifdef DEBUG_MODE
-    std::cout << "path between first and second in segment:";
-    printIterable(*path);
-    #endif
-    cycle.changeWithPath(*path, attachmentsToUse[2]);
+    cycle.changeWithPath(path, attachmentsToUse[2]);
+}
+
+// base case: graph has <4 nodes
+Embedding Embedder::baseCaseGraph(const Graph& graph) {
+    assert(graph.size() < 4);
+    Embedding embedding(graph.size());
+    for (int node = 0; node < graph.size(); ++node) {
+        for (int neighbor : graph.getNeighborsOfNode(node))
+            if (node < neighbor) embedding.addEdge(node, neighbor);
+    }
+    return embedding;
+}
+
+// base case: segment is a path
+Embedding Embedder::baseCaseSegment(const Segment& segment) {
+    assert(segment.isPath());
+    Embedding embedding(segment.size());
+    for (int node = 0; node < segment.size(); ++node) {
+        const std::vector<int>& neighbors = segment.getNeighborsOfNode(node);
+        if (neighbors.size() == 2) { // attachment nodes will be handled later
+            embedding.addSingleEdge(node, neighbors[0]);
+            embedding.addSingleEdge(node, neighbors[1]);
+        }
+    }
+    // handling attachment nodes (which have 3 neighbors)
+    assert(segment.getAttachments().size() == 2);
+    for (int attachment : segment.getAttachments()) {
+        int label = segment.getLabelOfNode(attachment);
+        int neighbors[3];
+        assert(embedding.getNeighborsOfNode(attachment).size() == 0);
+        assert(segment.getNeighborsOfNode(attachment).size() == 3);
+        for (int i = 0; i < 3; ++i)
+            neighbors[i] = -1;
+        for (int neighbor : segment.getNeighborsOfNode(attachment)) {
+            int neighborLabel = segment.getLabelOfNode(neighbor);
+            if (segment.getOriginalCycle().getNextOfNode(label) == neighborLabel) {
+                neighbors[0] = neighbor;
+                continue;
+            }
+            if (segment.getOriginalCycle().getPrevOfNode(label) == neighborLabel) {
+                neighbors[2] = neighbor;
+                continue;
+            }
+            neighbors[1] = neighbor;
+        }
+        for (int i = 0; i < 3; ++i) {
+            assert(neighbors[i] != -1);
+            embedding.addSingleEdge(attachment, neighbors[i]);
+        }
+    }
+    return embedding;
+}
+
+// base case: biconnected component is a cycle
+Embedding Embedder::baseCaseCycle(const Cycle& cycle) {
+    Embedding embedding(cycle.size());
+    for (int node = 0; node < cycle.size()-1; ++node)
+        embedding.addEdge(node, node+1);
+    embedding.addEdge(0, cycle.size()-1);
+    return embedding;
 }

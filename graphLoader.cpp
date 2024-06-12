@@ -8,15 +8,15 @@
 
 #include "graph.hpp"
 
-Graph* GraphLoader::loadFromFile(char* path) {
+Graph GraphLoader::loadFromFile(char* path) {
     std::ifstream inputFile(path);
     if (!inputFile.is_open()) {
         std::cerr << "Error: Could not open file " << path << std::endl;
-        return nullptr;
+        exit(1);
     }
     int nodesNumber{};
     inputFile >> nodesNumber;
-    Graph* graph = new Graph(nodesNumber);
+    Graph graph(nodesNumber);
     int from, to;
     std::string line;
     while (std::getline(inputFile, line)) {
@@ -24,7 +24,7 @@ Graph* GraphLoader::loadFromFile(char* path) {
             continue;
         std::istringstream iss(line);
         if (iss >> from >> to)
-            graph->addEdge(from, to);
+            graph.addEdge(from, to);
     }
     inputFile.close();
     return graph;

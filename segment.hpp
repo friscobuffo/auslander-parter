@@ -3,26 +3,41 @@
 
 #include <vector>
 #include <utility>
+#include <list>
 
-#include "graph.hpp"
+#include "cycle.hpp"
+#include "biconnectedComponent.hpp"
 
-class Cycle;
-class Component;
-
-class Segment : public GraphWithLabels {
+class Segment : public Component {
 private:
-    std::vector<bool> isNodeAnAttachment_m{};
-    std::vector<bool> isNodeInCycle_m{};
     std::vector<int> attachmentNodes_m{};
-    Component& originalComponent_m;
+    std::vector<bool> isNodeAnAttachment_m{};
+    const Component& originalComponent_m;
+    const Cycle& originalCycle_m;
 public:
-    Segment(Component& component, std::vector<int>& nodesInSegment, std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle);
-    Segment(Component& component, int from, int to, Cycle& cycle);
-    bool isPath();
-    std::vector<int>& getAttachments();
-    bool isNodeAnAttachment(int node);
-    std::list<int>* computePathBetweenAttachments(int start, int end);
-    bool isNodeInCycle(int node);
+    Segment(int numberOfNodes, const Component& originalComponent, const Cycle& cycle);
+    bool isPath() const;
+    const std::vector<int>& getAttachments() const;
+    void addAttachment(int attachment);
+    bool isNodeAnAttachment(int node) const;
+    std::list<int> computePathBetweenAttachments(int start, int end) const;
+    const Cycle& getOriginalCycle() const;
+    const Component& getOriginalComponent();
+};
+
+class SegmentsHandler {
+private:
+    std::vector<Segment> segments_m{};
+    const Cycle& originalCycle_m;
+    const Component& originalComponent_m;
+    Segment buildSegment(std::vector<int>& nodes, std::vector<std::pair<int, int>>& edges);
+    Segment buildChord(int attachment1, int attachment2);
+    void dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment, std::vector<std::pair<int, int>>& edgesInSegment);
+    void findSegments();
+    void findChords();
+public:
+    SegmentsHandler(const Component& component, const Cycle& cycle);
+    const std::vector<Segment> getSegments();
 };
 
 #endif

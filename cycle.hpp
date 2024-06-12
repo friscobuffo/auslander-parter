@@ -3,28 +3,30 @@
 
 #include <vector>
 #include <list>
+#include <optional>
 
-class Component;
+#include "biconnectedComponent.hpp"
 
 class Cycle {
 private:
     std::vector<int> nodes_m{};
     std::vector<int> posInCycle_m{};
-    Component& originalComponent_m;
-
-public:
-    Cycle(Component& component, std::list<int>& listOfNodes);
-    void changeWithPath(std::list<int>& path, int nodeToInclude);
-    bool hasNode(int node);
-    int size();
-    int getPrevOfNode(int node);
-    int getNextOfNode(int node);
+    const Component& originalComponent_m;
+    void dfsBuildCycle(int node, bool isNodeVisited[], int prev);
+    void cleanupCycle();
     void nextIndex(int& index);
-    std::vector<int>& nodes();
+public:
+    Cycle(const Component& component);
+    void changeWithPath(std::list<int>& path, int nodeToInclude);
+    bool hasNode(int node) const;
+    int size() const;
+    int getPrevOfNode(int node) const;
+    int getNextOfNode(int node) const;
+    const std::vector<int>& nodes() const;
     void reverse();
-    void print();
-    int getNodeByIndex(int index);
-    int getOriginalComponentSize();
+    void print() const;
+    int getOriginalComponentSize() const;
+    std::optional<int> getIndexOfNode(int node) const;
 };
 
 #endif

@@ -5,7 +5,7 @@ class Graph;
 
 class GraphLoader {
 public:
-    Graph* loadFromFile(char* path);
+    Graph loadFromFile(char* path);
 };
 
 #endif

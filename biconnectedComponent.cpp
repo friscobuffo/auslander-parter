@@ -1,136 +1,138 @@
 #include "biconnectedComponent.hpp"
 
 #include <iostream>
-#include <utility>
 #include <cassert>
 
 #include "utils.hpp"
-#include "segment.hpp"
-#include "cycle.hpp"
 
-Component::Component(int node) : GraphWithLabels({node}) {}
+Component::Component(int numberOfNodes) : Graph(numberOfNodes) {
+    nodeLabel_m.resize(numberOfNodes);
+    for (int i = 0; i < numberOfNodes; ++i)
+        nodeLabel_m[i] = -1;
+}
 
-Component::Component(int originalNumberOfNodes, std::list<int>& listOfNodes, std::list<std::pair<int, int>>& listOfEdges) 
-    : GraphWithLabels(listOfNodes) {
-    int oldToNewNodes[originalNumberOfNodes];
-    int index = 0;
-    for (const int node : listOfNodes) {
-        oldToNewNodes[node] = index;
-        ++index;
-    }
-    for (const std::pair<int, int>& edge: listOfEdges) {
-        int from = oldToNewNodes[edge.first];
-        int to = oldToNewNodes[edge.second];
-        addEdge(from, to);
+void Component::print() const {
+    for (int node = 0; node < size(); node++) {
+        int label = getLabelOfNode(node);
+        const std::vector<int>& neighbors = getNeighborsOfNode(node);
+        std::cout << "node: " << label << " neighbors: " << neighbors.size() << " [ ";
+        for (const int neighbor : neighbors)
+            std::cout << getLabelOfNode(neighbor) << " ";
+        std::cout << "]\n";
     }
 }
 
-void Component::dfsCycle(int node, bool isNodeVisited[], int prev, std::list<int>& nodeList) {
-    nodeList.push_back(node);
-    isNodeVisited[node] = true;
-    for (const int neighbor : getNeighborsOfNode(node)) {
-        if (neighbor == prev)
-            continue;
-        if (!isNodeVisited[neighbor]) {
-            dfsCycle(neighbor, isNodeVisited, node, nodeList);
-            break;
-        }
-        nodeList.push_back(neighbor);
-        return;
-    }
+int Component::getLabelOfNode(int node) const {
+    assert(nodeLabel_m[node] != -1);
+    return nodeLabel_m[node];
 }
 
-void Component::cleanupCycle(std::list<int>& nodeList) {
-    while (nodeList.front() != nodeList.back())
-        nodeList.pop_front();
-    nodeList.pop_back();
+void Component::assignNodeLabel(int node, int label) {
+    assert(nodeLabel_m[node] == -1);
+    nodeLabel_m[node] = label;
 }
 
-Cycle* Component::findCycle() {
-    #ifdef DEBUG_MODE
-    std::cout << "finding cycle in biconnected component:\n";
-    #endif
-    bool isNodeVisited[numberOfNodes()];
-    for (int node = 0; node < numberOfNodes(); ++node)
-        isNodeVisited[node] = false;
-    std::list<int> nodeList;
-    dfsCycle(0, isNodeVisited, -1, nodeList);
-    cleanupCycle(nodeList);
-    return new Cycle(*this, nodeList);
-}
-
-// parameter isCycleNodeAlreadyInSegment is necessary otherwise attachment nodes may be added multiple times
-void Component::dfsFindSegments(int node, bool isNodeVisited[], std::vector<int>& nodesInSegment,
-    std::vector<std::pair<int, int>>& edgesInSegment, Cycle& cycle) {
-    nodesInSegment.push_back(node);
-    isNodeVisited[node] = true;
-    for (const int neighbor : getNeighborsOfNode(node)) {
-        if (cycle.hasNode(neighbor)) {
-            edgesInSegment.push_back(std::make_pair(node, neighbor));
-            continue;
-        }
-        if (node < neighbor)
-            edgesInSegment.push_back(std::make_pair(node, neighbor));
-        if (!isNodeVisited[neighbor])
-            dfsFindSegments(neighbor, isNodeVisited, nodesInSegment, edgesInSegment, cycle);
-    }
-}
-
-void Component::findChords(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments) {
-    for (int node = 0; node < numberOfNodes(); ++node) {
-        if (!cycle.hasNode(node)) continue;
-        for (const int neighbor : getNeighborsOfNode(node)) {
-            if (node < neighbor) continue;
-            if (cycle.hasNode(neighbor))
-                if (neighbor != cycle.getPrevOfNode(node) && neighbor != cycle.getNextOfNode(node))
-                    segments.push_back(std::make_unique<Segment>(*this, node, neighbor, cycle));
-        }
-    }
-}
-
-void Component::findSegments(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments) {
-    #ifdef DEBUG_MODE
-    std::cout << "finding segments\n";
-    #endif
-    bool isNodeVisited[numberOfNodes()];
-    for (int node = 0; node < numberOfNodes(); ++node)
-        isNodeVisited[node] = false;
-    for (int node = 0; node < numberOfNodes(); ++node)
-        if (cycle.hasNode(node))
-            isNodeVisited[node] = true;
-    for (int node = 0; node < numberOfNodes(); ++node) {
-        if (!isNodeVisited[node]) {
-            std::vector<int> nodesInSegment{};
-            std::vector<std::pair<int, int>> edgesInSegment{};
-            dfsFindSegments(node, isNodeVisited, nodesInSegment, edgesInSegment, cycle);
-            for (const int node : cycle.nodes())
-                nodesInSegment.push_back(node);
-            segments.push_back(std::make_unique<Segment>(*this, nodesInSegment, edgesInSegment, cycle));
-        }
-    }
-}
-
-BiconnectedComponents::BiconnectedComponents(Graph& graph, std::vector<int>& cutVertices, std::vector<Component*>& components) 
-    : originalGraph_m(graph) {
-    for (const int cutVertex : cutVertices)
-        cutVertices_m.push_back(cutVertex);
-    for (Component* component : components)
-        components_m.push_back(std::unique_ptr<Component>(component));
-}
-
-void BiconnectedComponents::print() {
+void BiconnectedComponentsHandler::print() {
     std::cout << "Biconnected components:\n";
     std::cout << "Cutvertices: ";
     printIterable(cutVertices_m);
-    printf("\n");
     int index = 0;
     for (auto& component : components_m) {
         std::cout << "Biconnected component [" << index << "]:\n";
-        component->print();
+        component.print();
         ++index;
     }
 }
 
-std::vector<std::unique_ptr<Component>>& BiconnectedComponents::getComponents() {
+const std::vector<Component>& BiconnectedComponentsHandler::getComponents() {
     return components_m;
+}
+
+// assumes each edge node is in nodes list
+Component BiconnectedComponentsHandler::buildComponent(std::list<int>& nodes, std::list<std::pair<int, int>>& edges) {
+    Component component(nodes.size());
+    int oldToNewNodes[originalGraph_m.size()];
+    int index = 0;
+    for (const int node : nodes) {
+        oldToNewNodes[node] = index;
+        component.assignNodeLabel(index, node);
+        ++index;
+    }
+    for (const std::pair<int, int>& edge: edges) {
+        int from = oldToNewNodes[edge.first];
+        int to = oldToNewNodes[edge.second];
+        component.addEdge(from, to);
+    }
+    return component;
+}
+
+
+void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfNode[], int& nextIdToAssign, int lowPoint[],
+        std::list<int>& stackOfNodes, std::list<std::pair<int, int>>& stackOfEdges) {
+    nodeId[node] = nextIdToAssign;
+    lowPoint[node] = nextIdToAssign;
+    ++nextIdToAssign;
+    int childrenNumber = 0;
+    for (const int neighbor : originalGraph_m.getNeighborsOfNode(node)) {
+        if (prevOfNode[node] == neighbor)
+            continue;
+        if (nodeId[neighbor] == -1) { // means node is not visited
+            std::list<int> newStackOfNodes{};
+            std::list<std::pair<int, int>> newStackOfEdges{};
+            childrenNumber++;
+            prevOfNode[neighbor] = node;
+            newStackOfNodes.push_back(neighbor);
+            newStackOfEdges.push_back(std::make_pair(node, neighbor));
+            dfsBicCom(neighbor, nodeId, prevOfNode, nextIdToAssign, lowPoint, newStackOfNodes, newStackOfEdges);
+            if (lowPoint[neighbor] < lowPoint[node])
+                lowPoint[node] = lowPoint[neighbor];
+            if (lowPoint[neighbor] >= nodeId[node]) {
+                newStackOfNodes.push_back(node);
+                components_m.push_back(buildComponent(newStackOfNodes, newStackOfEdges));
+                if (prevOfNode[node] != -1) // the root needs to be handled differently
+                    // (handled at end of function)
+                    cutVertices_m.push_back(node);
+            }
+            else {
+                stackOfNodes.splice(stackOfNodes.end(), newStackOfNodes);
+                stackOfEdges.splice(stackOfEdges.end(), newStackOfEdges);
+            }
+        }
+        else { // node got already visited
+            int neighborNodeId = nodeId[neighbor];
+            if (neighborNodeId < nodeId[node]) {
+                stackOfEdges.push_back(std::make_pair(node, neighbor));
+                if (neighborNodeId < lowPoint[node])
+                    lowPoint[node] = neighborNodeId;
+            }
+        }
+    }
+    if (prevOfNode[node] == -1) { // handling of node with no parents (the root)
+        if (childrenNumber >= 2)
+            cutVertices_m.push_back(node);
+        else if (childrenNumber == 0) { // node is isolated
+            components_m.push_back(Component(1));
+            components_m.back().assignNodeLabel(0, node);
+        }
+    }
+}
+
+BiconnectedComponentsHandler::BiconnectedComponentsHandler(const Graph& graph) : originalGraph_m(graph) {
+    int nodeId[graph.size()];
+    int prevOfNode[graph.size()];
+    int lowPoint[graph.size()];
+    for (int node = 0; node < graph.size(); ++node) {
+        nodeId[node] = -1;
+        prevOfNode[node] = -1;
+        lowPoint[node] = -1;
+    }
+    int nextIdToAssign = 0;
+    std::list<int> stackOfNodes{}; // its better to use lists instead of vectors since
+    // we need to merge lists together (O(1) with lists, O(N) with vectors)
+    std::list<std::pair<int, int>> stackOfEdges{}; // same arguments
+    for (int node = 0; node < graph.size(); node++)
+        if (nodeId[node] == -1) // node not visited
+            dfsBicCom(node, nodeId, prevOfNode, nextIdToAssign, lowPoint, stackOfNodes, stackOfEdges);
+    assert(stackOfNodes.size() == 0);
+    assert(stackOfEdges.size() == 0);
 }

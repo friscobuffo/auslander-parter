@@ -2,19 +2,14 @@
 
 #include <cassert>
 
-#include "biconnectedComponent.hpp"
 #include "utils.hpp"
-#include "cycle.hpp"
-#include "segment.hpp"
 
-InterlacementGraph::InterlacementGraph(Cycle& cycle, std::vector<std::unique_ptr<Segment>>& segments) 
-    : Graph(segments.size()), cycle_m(cycle) {
-    for (int i = 0; i < segments.size(); ++i)
-        segments_m.push_back(segments[i].get());
+InterlacementGraph::InterlacementGraph(const Cycle& cycle, const std::vector<Segment>& segments) 
+    : Graph(segments.size()), cycle_m(cycle) , segments_m(segments) {
     computeConflicts();
 }
 
-void InterlacementGraph::computeCycleLabels(Segment& segment, int cycleLabels[]) {
+void InterlacementGraph::computeCycleLabels(const Segment& segment, int cycleLabels[]) {
     int originalComponentSize = cycle_m.getOriginalComponentSize();
     bool isCycleNodeAnAttachment[originalComponentSize];
     for (int i = 0; i < originalComponentSize; ++i)
@@ -24,7 +19,7 @@ void InterlacementGraph::computeCycleLabels(Segment& segment, int cycleLabels[])
     int foundAttachments = 0;
     int totalAttachments = segment.getAttachments().size();
     for (int i = 0; i < cycle_m.size(); ++i) {
-        int node = cycle_m.getNodeByIndex(i);
+        int node = cycle_m.nodes()[i];
         if (isCycleNodeAnAttachment[node])
             cycleLabels[node] = 2*(foundAttachments++);
         else
@@ -39,12 +34,12 @@ void InterlacementGraph::computeCycleLabels(Segment& segment, int cycleLabels[])
 void InterlacementGraph::computeConflicts() {
     int cycleLabels[cycle_m.getOriginalComponentSize()];
     for (int i = 0; i < segments_m.size()-1; ++i) {
-        Segment& segment = *segments_m[i];
+        const Segment& segment = segments_m[i];
         computeCycleLabels(segment, cycleLabels);
         int numberOfLabels = 2*segment.getAttachments().size();
         int labels[numberOfLabels];
         for (int j = i+1; j < segments_m.size(); ++j) {
-            Segment& otherSegment = *segments_m[j];
+            const Segment& otherSegment = segments_m[j];
             for (int k = 0; k < numberOfLabels; ++k)
                 labels[k] = 0;
             for (const int attachment : otherSegment.getAttachments()) {
