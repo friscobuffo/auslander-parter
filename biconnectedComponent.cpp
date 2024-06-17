@@ -5,7 +5,8 @@
 
 #include "utils.hpp"
 
-Component::Component(int numberOfNodes) : Graph(numberOfNodes) {
+Component::Component(int numberOfNodes, const Graph& graph)
+: Graph(numberOfNodes), originalGraph_m(graph) {
     nodeLabel_m.resize(numberOfNodes);
     for (int i = 0; i < numberOfNodes; ++i)
         nodeLabel_m[i] = -1;
@@ -32,6 +33,10 @@ void Component::assignNodeLabel(int node, int label) {
     nodeLabel_m[node] = label;
 }
 
+int Component::originalGraphSize() const {
+    return originalGraph_m.size();
+}
+
 void BiconnectedComponentsHandler::print() {
     std::cout << "Biconnected components:\n";
     std::cout << "Cutvertices: ";
@@ -50,7 +55,7 @@ const std::vector<Component>& BiconnectedComponentsHandler::getComponents() {
 
 // assumes each edge node is in nodes list
 Component BiconnectedComponentsHandler::buildComponent(std::list<int>& nodes, std::list<std::pair<int, int>>& edges) {
-    Component component(nodes.size());
+    Component component(nodes.size(), originalGraph_m);
     int oldToNewNodes[originalGraph_m.size()];
     int index = 0;
     for (const int node : nodes) {
@@ -111,7 +116,7 @@ void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfN
         if (childrenNumber >= 2)
             cutVertices_m.push_back(node);
         else if (childrenNumber == 0) { // node is isolated
-            components_m.push_back(Component(1));
+            components_m.push_back(Component(1, originalGraph_m));
             components_m.back().assignNodeLabel(0, node);
         }
     }

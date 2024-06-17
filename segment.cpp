@@ -6,7 +6,7 @@
 #include "utils.hpp"
 
 Segment::Segment(int numberOfNodes, const Component& component, const Cycle& cycle)
-: Component(numberOfNodes), originalComponent_m(component), originalCycle_m(cycle) {
+: Component(numberOfNodes, component), originalComponent_m(component), originalCycle_m(cycle) {
     isNodeAnAttachment_m.resize(numberOfNodes);
     for (int i = 0; i < numberOfNodes; ++i)
         isNodeAnAttachment_m[i] = false;
@@ -71,7 +71,7 @@ const Cycle& Segment::getOriginalCycle() const {
     return originalCycle_m;
 }
 
-const Component& Segment::getOriginalComponent() {
+const Component& Segment::getOriginalComponent() const {
     return originalComponent_m;
 }
 
@@ -148,20 +148,16 @@ Segment SegmentsHandler::buildSegment(std::vector<int>& nodes, std::vector<std::
         int from = oldToNewLabel[edge.first];
         int to = oldToNewLabel[edge.second];
         segment.addEdge(from, to);
+        // adding attachment
+        if (originalCycle_m.hasNode(edge.first))
+            segment.addAttachment(from);
+        if (originalCycle_m.hasNode(edge.second))
+            segment.addAttachment(to);
     }
     // adding cycle edges
     for (int i = 0; i < originalCycle_m.size()-1; ++i)
         segment.addEdge(i, i+1);
     segment.addEdge(0, originalCycle_m.size()-1);
-    // adding attachments
-    for (const auto& edge : edges) {
-        int node1 = oldToNewLabel[edge.first];
-        int node2 = oldToNewLabel[edge.second];
-        if (originalCycle_m.hasNode(edge.first))
-            segment.addAttachment(node1);
-        if (originalCycle_m.hasNode(edge.second))
-            segment.addAttachment(node2);
-    }
     return segment;
 }
 

@@ -22,7 +22,7 @@ public:
     bool isNodeAnAttachment(int node) const;
     std::list<int> computePathBetweenAttachments(int start, int end) const;
     const Cycle& getOriginalCycle() const;
-    const Component& getOriginalComponent();
+    const Component& getOriginalComponent() const;
 };
 
 class SegmentsHandler {

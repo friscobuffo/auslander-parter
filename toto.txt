@@ -1,5 +1,0 @@
-need to change node pos in cycle after reverse
-
-valutare 
-    int getOriginalComponentSize();
-

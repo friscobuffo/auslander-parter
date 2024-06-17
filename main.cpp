@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
     Embedder embedder{};
     for (int i = 1; i < argc; ++i) {
         Graph graph = loader.loadFromFile(argv[i]);
-        graph.print();
+        // graph.print();
         std::optional<Embedding> embedding = embedder.embed(graph);
         std::cout << std::boolalpha << "graph is planar: " << embedding.has_value() << "\n";
     }

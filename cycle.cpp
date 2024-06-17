@@ -1,5 +1,7 @@
 #include "cycle.hpp"
 
+#include <cassert>
+
 #include "utils.hpp"
 
 void Cycle::dfsBuildCycle(int node, bool isNodeVisited[], int prev) {
@@ -96,12 +98,14 @@ int Cycle::size() const {
 
 int Cycle::getPrevOfNode(int node) const {
     int pos = posInCycle_m[node];
+    assert(pos != -1);
     if (pos == 0) return nodes_m[size()-1];
     return nodes_m[pos-1];
 }
 
 int Cycle::getNextOfNode(int node) const {
     int pos = posInCycle_m[node];
+    assert(pos != -1);
     if (pos == size()-1) return nodes_m[0];
     return nodes_m[pos+1];
 }
@@ -126,6 +130,8 @@ void Cycle::reverse() {
         int temp = nodes_m[start];
         nodes_m[start] = nodes_m[end];
         nodes_m[end] = temp;
+        posInCycle_m[nodes_m[start]] = start;
+        posInCycle_m[nodes_m[end]] = end;
         ++start;
         --end;
     }

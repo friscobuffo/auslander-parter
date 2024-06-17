@@ -9,11 +9,13 @@
 
 class Component : public Graph {
 private:
+    const Graph& originalGraph_m;
     std::vector<int> nodeLabel_m{};
 public:
-    Component(int numberOfNodes);
+    Component(int numberOfNodes, const Graph& graph);
     void print() const override;
     int getLabelOfNode(int node) const;
+    int originalGraphSize() const;
     void assignNodeLabel(int node, int label);
 };
 
