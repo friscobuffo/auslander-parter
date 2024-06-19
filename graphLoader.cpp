@@ -8,7 +8,7 @@
 
 #include "graph.hpp"
 
-Graph GraphLoader::loadFromFile(char* path) {
+const MyGraph GraphLoader::loadFromFile(char* path) {
     std::ifstream inputFile(path);
     if (!inputFile.is_open()) {
         std::cerr << "Error: Could not open file " << path << std::endl;
@@ -16,7 +16,7 @@ Graph GraphLoader::loadFromFile(char* path) {
     }
     int nodesNumber{};
     inputFile >> nodesNumber;
-    Graph graph(nodesNumber);
+    MyGraph graph(nodesNumber);
     int from, to;
     std::string line;
     while (std::getline(inputFile, line)) {

@@ -3,33 +3,104 @@
 #include <cassert>
 #include <iostream>
 
+#include <ogdf/basic/Graph.h>
+#include <ogdf/basic/GraphAttributes.h>
+#include <ogdf/planarlayout/PlanarStraightLayout.h>
+#include <ogdf/planarlayout/PlanarDrawLayout.h>
+#include <ogdf/fileformats/GraphIO.h>
+#include <ogdf/planarity/EmbedderModule.h>
+
 #include "interlacement.hpp"
 #include "utils.hpp"
 
-Embedding::Embedding(int numberOfNodes) : Graph(numberOfNodes) {}
+using namespace ogdf;
+
+Embedding::Embedding(int numberOfNodes) : MyGraph(numberOfNodes) {}
 
 void Embedding::addSingleEdge(int from, int to) {
     neighborsOfNode_m[from].push_back(to);
 }
 
-// TODO
-Embedding Embedder::mergeBiconnectedComponents(std::vector<std::optional<Embedding>>& embeddings) {
-    return Embedding(1);
+Embedding mergeBiconnectedComponents(const MyGraph& graph, const std::vector<Component>& components,
+const std::vector<std::optional<Embedding>>& embeddings) {
+    Embedding output(graph.size());
+    assert(components.size() == embeddings.size());
+    for (int i = 0; i < components.size(); ++i) {
+        assert(embeddings[i].has_value());
+        const Component& component = components[i];
+        const Embedding& embedding = embeddings[i].value();
+        for (int node = 0; node < embedding.size(); ++node) {
+            int label = component.getLabelOfNode(node);
+            for (int neighbor : embedding.getNeighborsOfNode(node)) {
+                int neighborLabel = component.getLabelOfNode(neighbor);
+                output.addSingleEdge(label, neighborLabel);
+            }
+        }
+    }
+    return output;
 }
 
-std::optional<Embedding> Embedder::embed(const Graph& graph) {
+Graph myGraphToOgdf(const MyGraph& myGraph) {
+    Graph graph;
+    std::vector<node> nodes(myGraph.size());
+    for (int n = 0; n < myGraph.size(); ++n)
+        nodes[n] = graph.newNode();
+    for (int n = 0; n < myGraph.size(); ++n)
+        for (int neighbor : myGraph.getNeighborsOfNode(n))
+            if (n < neighbor)
+                graph.newEdge(nodes[n], nodes[neighbor]);
+    return graph;
+}
+
+Graph embeddingToOgdfGraph(const Embedding& embedding) {
+    Graph graph = myGraphToOgdf(embedding);
+    std::vector<int> position(embedding.size());
+    for (node n : graph.nodes) {
+        const int label = n->index();
+        const std::vector<int>& neighbors = embedding.getNeighborsOfNode(label);
+        for (int i = 0; i < neighbors.size(); ++i)
+            position[neighbors[i]] = i;
+        std::vector<adjEntry> order(neighbors.size());
+        for (adjEntry& adj : n->adjEntries) {
+            const int neighbor = adj->twinNode()->index();
+            order[position[neighbor]] = adj;
+        }
+        List<adjEntry> newOrder;
+        for (adjEntry& adj : order)
+            newOrder.pushBack(adj);
+        graph.sort(n, newOrder);
+    }
+    return graph;
+}
+
+void Embedding::saveToSvg(std::string& outputPath) const {
+    Graph graph = embeddingToOgdfGraph(*this);
+    GraphAttributes GA(graph, GraphAttributes::nodeGraphics | GraphAttributes::edgeGraphics |
+                        GraphAttributes::nodeLabel | GraphAttributes::edgeStyle |
+                        GraphAttributes::nodeStyle | GraphAttributes::edgeArrow);
+    for (node v : graph.nodes) {
+        GA.label(v) = std::to_string(v->index());
+        GA.shape(v) = Shape::Ellipse;
+    }
+    for (edge e : graph.edges) {
+        GA.strokeWidth(e) = 1.5;
+        GA.arrowType(e) = EdgeArrow::None;
+    }
+    PlanarDrawLayout layout;
+    layout.call(GA);
+    GraphIO::write(GA, outputPath);
+}
+
+
+std::optional<const Embedding> Embedder::embed(const MyGraph& graph) {
     if (graph.size() < 4) return baseCaseGraph(graph);
-    BiconnectedComponentsHandler bicComps(graph);
+    const BiconnectedComponentsHandler bicComps(graph);
     std::vector<std::optional<Embedding>> embeddings{};
     for (const auto& component : bicComps.getComponents()) {
         embeddings.push_back(embed(component));
         if (!embeddings.back().has_value()) return std::nullopt;
-        std::cout << "component\n";
-        component.print();
-        std::cout << "final embedding\n";
-        embeddings.back().value().print();
     }
-    return mergeBiconnectedComponents(embeddings);
+    return mergeBiconnectedComponents(graph, bicComps.getComponents(), embeddings);
 }
 
 // for each segment, it computes the minimum and the maximum of all of its attachments
@@ -47,7 +118,7 @@ int segmentsMinAttachment[], int segmentsMaxAttachment[]) {
     }
 }
 
-std::vector<int> Embedder::computeOrder(int cycleNode, const std::vector<int>& segmentsIndexes,
+const std::vector<int> Embedder::computeOrder(int cycleNode, const std::vector<int>& segmentsIndexes,
 int segmentsMinAttachment[], int segmentsMaxAttachment[], const std::vector<Segment>& segments) {
     std::optional<int> middleSegment;
     std::vector<int> minSegments{};
@@ -131,10 +202,11 @@ int segmentsMinAttachment[], int segmentsMaxAttachment[], const std::vector<Segm
     if (middleSegment) order.push_back(middleSegment.value());
     for (int segmentIndex : minSegments)
         order.push_back(segmentIndex);
+    assert(order.size() == segmentsIndexes.size());
     return order;
 }
 
-Embedding Embedder::mergeSegmentsEmbeddings(const Component& component, const Cycle& cycle,
+const Embedding Embedder::mergeSegmentsEmbeddings(const Component& component, const Cycle& cycle,
 const std::vector<std::optional<Embedding>>& embeddings, const std::vector<Segment>& segments,
 const std::vector<int>& bipartition) {
     Embedding output(component.size());
@@ -195,7 +267,7 @@ const std::vector<int>& bipartition) {
     return output;
 }
 
-std::optional<Embedding> Embedder::embed(const Component& component, Cycle& cycle) {
+std::optional<const Embedding> Embedder::embed(const Component& component, Cycle& cycle) {
     SegmentsHandler segmentsHandler = SegmentsHandler(component, cycle);
     const std::vector<Segment>& segments = segmentsHandler.getSegments();
     if (segments.size() == 0) // entire biconnected component IS the cycle
@@ -219,12 +291,10 @@ std::optional<Embedding> Embedder::embed(const Component& component, Cycle& cycl
             assert(segment.getLabelOfNode(i) == cycle.nodes()[i]);
         }
     }
-    Embedding output = mergeSegmentsEmbeddings(component, cycle, embeddings, segments, bipartition.value());
-    return output;
+    return mergeSegmentsEmbeddings(component, cycle, embeddings, segments, bipartition.value());
 }
 
-std::optional<Embedding> Embedder::embed(const Component& component) {
-    if (component.size() < 4) return baseCaseGraph(component); // base case
+std::optional<const Embedding> Embedder::embed(const Component& component) {
     Cycle cycle(component);
     return embed(component, cycle);
 }
@@ -258,7 +328,7 @@ void Embedder::makeCycleGood(Cycle& cycle, const Segment& segment) {
 }
 
 // base case: graph has <4 nodes
-Embedding Embedder::baseCaseGraph(const Graph& graph) {
+const Embedding Embedder::baseCaseGraph(const MyGraph& graph) {
     assert(graph.size() < 4);
     Embedding embedding(graph.size());
     for (int node = 0; node < graph.size(); ++node) {
@@ -269,7 +339,7 @@ Embedding Embedder::baseCaseGraph(const Graph& graph) {
 }
 
 // base case: segment is a path
-Embedding Embedder::baseCaseSegment(const Segment& segment) {
+const Embedding Embedder::baseCaseSegment(const Segment& segment) {
     assert(segment.size() == segment.getOriginalComponent().size());
     assert(segment.isPath());
     Embedding embedding(segment.size());
@@ -277,6 +347,7 @@ Embedding Embedder::baseCaseSegment(const Segment& segment) {
         int label = segment.getLabelOfNode(node);
         const std::vector<int>& neighbors = segment.getNeighborsOfNode(node);
         if (neighbors.size() == 2) { // attachment nodes will be handled later
+            
             embedding.addSingleEdge(label, segment.getLabelOfNode(neighbors[0]));
             embedding.addSingleEdge(label, segment.getLabelOfNode(neighbors[1]));
         }
@@ -311,7 +382,7 @@ Embedding Embedder::baseCaseSegment(const Segment& segment) {
 }
 
 // base case: biconnected component is a cycle
-Embedding Embedder::baseCaseCycle(const Cycle& cycle) {
+const Embedding Embedder::baseCaseCycle(const Cycle& cycle) {
     Embedding embedding(cycle.size());
     for (int node = 1; node < cycle.size()-1; ++node)
         embedding.addEdge(cycle.nodes()[node], cycle.nodes()[node+1]);

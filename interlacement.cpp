@@ -5,7 +5,7 @@
 #include "utils.hpp"
 
 InterlacementGraph::InterlacementGraph(const Cycle& cycle, const std::vector<Segment>& segments) 
-    : Graph(segments.size()), cycle_m(cycle) , segments_m(segments) {
+    : MyGraph(segments.size()), cycle_m(cycle) , segments_m(segments) {
     computeConflicts();
 }
 

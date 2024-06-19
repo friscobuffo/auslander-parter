@@ -1,4 +1,6 @@
-g++ -DDEBUG_MODE -o main-debug \
+g++ -o main \
+    -IOGDF/include \
+    -LOGDF \
     main.cpp \
     graph.cpp \
     biconnectedComponent.cpp \
@@ -6,4 +8,5 @@ g++ -DDEBUG_MODE -o main-debug \
     cycle.cpp \
     graphLoader.cpp \
     interlacement.cpp \
-    embedder.cpp
+    embedder.cpp \
+    -lOGDF -lCOIN

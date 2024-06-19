@@ -12,11 +12,14 @@ private:
     std::vector<int> nodes_m{};
     std::vector<int> posInCycle_m{};
     const Component& originalComponent_m;
+
     void dfsBuildCycle(int node, bool isNodeVisited[], int prev);
     void cleanupCycle();
     void nextIndex(int& index);
+
 public:
     Cycle(const Component& component);
+
     void changeWithPath(std::list<int>& path, int nodeToInclude);
     bool hasNode(int node) const;
     int size() const;

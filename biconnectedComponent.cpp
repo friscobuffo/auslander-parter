@@ -5,8 +5,8 @@
 
 #include "utils.hpp"
 
-Component::Component(int numberOfNodes, const Graph& graph)
-: Graph(numberOfNodes), originalGraph_m(graph) {
+Component::Component(int numberOfNodes, const MyGraph& graph)
+: MyGraph(numberOfNodes), originalGraph_m(graph) {
     nodeLabel_m.resize(numberOfNodes);
     for (int i = 0; i < numberOfNodes; ++i)
         nodeLabel_m[i] = -1;
@@ -37,7 +37,8 @@ int Component::originalGraphSize() const {
     return originalGraph_m.size();
 }
 
-void BiconnectedComponentsHandler::print() {
+
+void BiconnectedComponentsHandler::print() const {
     std::cout << "Biconnected components:\n";
     std::cout << "Cutvertices: ";
     printIterable(cutVertices_m);
@@ -49,12 +50,12 @@ void BiconnectedComponentsHandler::print() {
     }
 }
 
-const std::vector<Component>& BiconnectedComponentsHandler::getComponents() {
+const std::vector<Component>& BiconnectedComponentsHandler::getComponents() const {
     return components_m;
 }
 
 // assumes each edge node is in nodes list
-Component BiconnectedComponentsHandler::buildComponent(std::list<int>& nodes, std::list<std::pair<int, int>>& edges) {
+const Component BiconnectedComponentsHandler::buildComponent(std::list<int>& nodes, std::list<std::pair<int, int>>& edges) {
     Component component(nodes.size(), originalGraph_m);
     int oldToNewNodes[originalGraph_m.size()];
     int index = 0;
@@ -84,7 +85,7 @@ void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfN
         if (nodeId[neighbor] == -1) { // means node is not visited
             std::list<int> newStackOfNodes{};
             std::list<std::pair<int, int>> newStackOfEdges{};
-            childrenNumber++;
+            ++childrenNumber;
             prevOfNode[neighbor] = node;
             newStackOfNodes.push_back(neighbor);
             newStackOfEdges.push_back(std::make_pair(node, neighbor));
@@ -96,7 +97,7 @@ void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfN
                 components_m.push_back(buildComponent(newStackOfNodes, newStackOfEdges));
                 if (prevOfNode[node] != -1) // the root needs to be handled differently
                     // (handled at end of function)
-                    cutVertices_m.push_back(node);
+                    isCutVertex_m[node] = true;
             }
             else {
                 stackOfNodes.splice(stackOfNodes.end(), newStackOfNodes);
@@ -114,7 +115,7 @@ void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfN
     }
     if (prevOfNode[node] == -1) { // handling of node with no parents (the root)
         if (childrenNumber >= 2)
-            cutVertices_m.push_back(node);
+            isCutVertex_m[node] = true;
         else if (childrenNumber == 0) { // node is isolated
             components_m.push_back(Component(1, originalGraph_m));
             components_m.back().assignNodeLabel(0, node);
@@ -122,7 +123,9 @@ void BiconnectedComponentsHandler::dfsBicCom(int node, int nodeId[], int prevOfN
     }
 }
 
-BiconnectedComponentsHandler::BiconnectedComponentsHandler(const Graph& graph) : originalGraph_m(graph) {
+BiconnectedComponentsHandler::BiconnectedComponentsHandler(const MyGraph& graph) : originalGraph_m(graph) {
+    for (int i = 0; i < graph.size(); ++i)
+        isCutVertex_m.push_back(false);
     int nodeId[graph.size()];
     int prevOfNode[graph.size()];
     int lowPoint[graph.size()];
@@ -140,4 +143,6 @@ BiconnectedComponentsHandler::BiconnectedComponentsHandler(const Graph& graph) :
             dfsBicCom(node, nodeId, prevOfNode, nextIdToAssign, lowPoint, stackOfNodes, stackOfEdges);
     assert(stackOfNodes.size() == 0);
     assert(stackOfEdges.size() == 0);
+    for (int node = 0; node < graph.size(); ++node)
+        if (isCutVertex_m[node]) cutVertices_m.push_back(node);
 }
